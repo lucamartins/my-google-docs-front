@@ -1,3 +1,4 @@
+/* eslint-env node */
 import { Box, Button, TextField, Typography } from "@mui/material";
 import { messageCallbackType } from "@stomp/stompjs";
 import { useEffect, useReducer, useRef, useState } from "react";
