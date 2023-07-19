@@ -28,6 +28,8 @@ const useWebSocketClient = () => {
     destination: string,
     callback: messageCallbackType
   ) => {
+    console.log("Adding subscriber to: " + destination);
+
     try {
       if (!client || !client.connected) {
         throw new Error("Client not connected");

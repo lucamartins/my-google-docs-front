@@ -85,8 +85,9 @@ function App() {
   const transformOperation = () => {};
 
   useEffect(() => {
+    if (!client.connected) return;
     addSubscriber("/getSharedFile", getSharedDocument);
-  }, []);
+  }, [client, addSubscriber]);
 
   const handleTest = () => {
     // this test shows that when injecting text, the cursor position requires to be updated (transformed)
