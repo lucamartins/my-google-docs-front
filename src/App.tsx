@@ -1,45 +1,61 @@
-import { Box, Button, TextField } from "@mui/material";
-import "./App.css";
-import { useRef, useState } from "react";
+import { Box, TextField } from "@mui/material";
+import { messageCallbackType } from "@stomp/stompjs";
+import { useEffect, useReducer, useRef, useState } from "react";
+import { getOperationDetails } from "./helpers";
+import { useWebSocketClient } from "./hooks";
+import "./styles/App.css";
+import { SharedDocument } from "./types";
 
 function App() {
-  const [textContent, setTextContent] = useState<string>("12345678");
+  const { addSubscriber } = useWebSocketClient();
+  const [textContent, setTextContent] = useState<string>("Hello!");
   const textAreaRef = useRef<HTMLTextAreaElement>();
+  const [localDocument, updateLocalDocument] = useReducer(
+    localDocumentReducer,
+    {
+      textContent: "",
+      userId: "",
+      operations: [],
+      version: 0,
+    }
+  );
 
-  const logSelectionRange = () => {
-    const start = textAreaRef.current?.selectionStart;
-    const end = textAreaRef.current?.selectionEnd;
-    const textContentArray = textContent.split("");
+  function localDocumentReducer(
+    state: SharedDocument,
+    action: any
+  ): SharedDocument {
+    return {
+      ...state,
+    };
+  }
 
-    console.log({
-      selectionStartRef: start,
-      selectionEndRef: end,
-      textContentArray,
-    });
+  const getSharedDocument: messageCallbackType = (data) => {
+    const sharedDocument = JSON.parse(data.body) as SharedDocument;
+    console.log({ sharedDocument });
   };
 
+  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const operationDetails = getOperationDetails(textContent, e.target.value);
+    console.log(operationDetails);
+    setTextContent(e.target.value);
+  };
+
+  useEffect(() => {
+    addSubscriber("/getSharedFile", getSharedDocument);
+  }, []);
+
   return (
-    <Box sx={{ width: "100%", height: "100%" }}>
+    <Box sx={{ width: "100%", height: "100%", position: "relative" }}>
       <TextField
         id="outlined-multiline-static"
         label="Meu Doc Compartilhado"
         multiline
         rows={20}
         value={textContent}
-        onChange={(e) => {
-          logSelectionRange();
-          setTextContent(e.target.value);
-        }}
+        onChange={handleTextChange}
         fullWidth={true}
         inputRef={textAreaRef}
-        onFocus={logSelectionRange}
       />
-
-      <Box mt={4}>
-        <Button variant="contained" onClick={logSelectionRange}>
-          Log!
-        </Button>
-      </Box>
     </Box>
   );
 }
