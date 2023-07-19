@@ -14,7 +14,7 @@ function App() {
     localDocumentReducer,
     {
       textContent: "",
-      userId: "",
+      currentUserId: "",
       operations: [],
       version: 0,
     }
@@ -48,7 +48,7 @@ function App() {
     <Box sx={{ width: "100%", height: "100%", position: "relative" }}>
       <TextField
         id="outlined-multiline-static"
-        label="Meu Doc Compartilhado"
+        label="Meu Documento Compartilhado"
         multiline
         rows={20}
         value={textContent}
