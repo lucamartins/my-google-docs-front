@@ -1,7 +1,7 @@
 import { Client, messageCallbackType } from "@stomp/stompjs";
 import { useEffect, useMemo } from "react";
 
-const WEBSOCKET_URL = "ws://192.168.6.119:8080/gs-guide-websocket";
+const WEBSOCKET_URL = "ws://157.245.249.135:8080/gs-guide-websocket";
 
 const useWebSocketClient = () => {
   const client = useMemo(
