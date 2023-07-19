@@ -4,5 +4,5 @@ export interface SharedDocument {
   version: number;
   operations: Operation[];
   textContent: string;
-  userId: string;
+  currentUserId: string;
 }
