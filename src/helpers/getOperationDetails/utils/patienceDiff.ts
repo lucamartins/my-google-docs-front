@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * program: "patienceDiff" algorithm implemented in javascript.
  * author: Jonathan Trent

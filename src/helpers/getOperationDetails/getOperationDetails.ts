@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { patienceDiff } from "./utils";
 
 export default function getOperationDetails(
