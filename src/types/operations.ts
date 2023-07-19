@@ -9,7 +9,6 @@ export interface Operation {
   position: number;
   version: number;
   userId: string;
-  ack?: boolean;
 }
 
 export interface OperationTransformer {
