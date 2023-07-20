@@ -91,20 +91,20 @@ function App() {
   // * Web Socket Remote Processing - Publishers
   // *
 
-  const sendOperationToServer = () => {
-    const mockOperation: Operation = {
-      type: OperationTypeEnum.Insert,
-      position: 0,
-      value: "a",
-      userId: "123",
-      version: 1,
-    };
+  // const sendOperationToServer = () => {
+  //   const mockOperation: Operation = {
+  //     type: OperationTypeEnum.Insert,
+  //     position: 0,
+  //     value: "a",
+  //     userId: "123",
+  //     version: 1,
+  //   };
 
-    client.publish({
-      destination: "/doOperation",
-      body: JSON.stringify(mockOperation),
-    });
-  };
+  //   client.publish({
+  //     destination: "/doOperation",
+  //     body: JSON.stringify(mockOperation),
+  //   });
+  // };
 
   //
   // Local Processing
@@ -146,6 +146,10 @@ function App() {
     console.log({ addSubscriber });
 
     addSubscriber("/getSharedFile", getSharedDocument);
+  }
+
+  function handleCloseWebSocket() {
+    void disconnectWebSocket();
   }
 
   useEffect(setUpWebSocket, [client.connected, addSubscriber]);
@@ -198,7 +202,7 @@ function App() {
           <Button
             color="error"
             disabled={!isWebSocketConnected}
-            onClick={disconnectWebSocket}
+            onClick={handleCloseWebSocket}
           >
             Desconectar WebSocket
           </Button>

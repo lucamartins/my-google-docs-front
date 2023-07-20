@@ -1,5 +1,5 @@
 import { Client, messageCallbackType } from "@stomp/stompjs";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 const WEBSOCKET_URL = "wss://projetoufg.com.br/gs-guide-websocket";
 
