@@ -1,1 +1,1 @@
-export { default as getOperationDetails } from "./getOperationDetails";
+export { default } from "./getOperationDetails";

@@ -12,5 +12,5 @@ export interface Operation {
 }
 
 export interface OperationTransformer {
-  (operation: Operation): Operation;
+  (operation: Operation, appliedOperations: Operation[]): Operation;
 }
