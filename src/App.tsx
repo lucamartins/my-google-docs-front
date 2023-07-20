@@ -29,12 +29,8 @@ function App() {
 
   const refCallback = useCallback(setTextAreaRefAndCursorObserver, []);
 
-  useEffect(updateCursorPositionWhenRequired, [
-    cursorPosition,
-    isCursorRepositionPending,
-    oldTextContent.length,
-    textContent,
-  ]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(updateCursorPositionWhenRequired, [textContent]);
 
   function setTextAreaRefAndCursorObserver(node: HTMLTextAreaElement) {
     if (!node) return;

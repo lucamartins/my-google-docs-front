@@ -29,10 +29,6 @@ const useWebSocketClient = () => {
     []
   );
 
-  // useEffect(() => {
-  //   client.activate();
-  // }, [client]);
-
   const addSubscriber = useCallback(
     (destination: string, callback: messageCallbackType) => {
       console.log("Adding subscriber to: " + destination);
