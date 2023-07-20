@@ -3,7 +3,7 @@
 import { Box, Button, TextField, Typography } from "@mui/material";
 import { messageCallbackType } from "@stomp/stompjs";
 import { useEffect, useReducer, useRef, useState } from "react";
-import { getOperationDetails } from "./helpers";
+import { getTextChangeDetails } from "./helpers";
 import { useWebSocketClient } from "./hooks";
 import "./styles/App.css";
 import { SharedDocument } from "./types";
@@ -75,7 +75,7 @@ function App() {
     // update the textContent
     // mount and send the operation to the server
 
-    const operationDetails = getOperationDetails(textContent, e.target.value);
+    const operationDetails = getTextChangeDetails(textContent, e.target.value);
     console.log(operationDetails, "interceptor called");
     setTextContent(e.target.value);
   };

@@ -1,12 +1,13 @@
 // @ts-nocheck
+
 import { patienceDiff } from "./utils";
 
-export default function getOperationDetails(
+export default function getTextChangeDetails(
   oldTextContent: string,
   newTextContent: string
 ) {
-  let diff = patienceDiff(oldTextContent, newTextContent);
-  let operation = { type: "", value: [], position: "" };
+  const diff = patienceDiff(oldTextContent, newTextContent);
+  const operation = { type: "", value: [], position: "" };
 
   if (diff.lineCountDeleted !== 0) {
     operation.type = "delete";
@@ -22,11 +23,6 @@ export default function getOperationDetails(
     operation.value = letterData.line;
     operation.position = letterData.bIndex;
   }
-
-  // stompClient.publish({
-  //   destination: "/app/doOperation",
-  //   body: JSON.stringify(operation),
-  // });
 
   return operation;
 }

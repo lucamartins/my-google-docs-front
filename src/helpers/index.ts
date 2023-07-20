@@ -1,2 +1,2 @@
-export { default as getOperationDetails } from "./getOperationDetails";
+export { default as getTextChangeDetails } from "./getTextChangeDetails";
 export { default as transformOperation } from "./transformOperation";
