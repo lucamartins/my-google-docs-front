@@ -1,107 +1,180 @@
-// @ts-nocheck
-
 import { Box, Button, TextField, Typography } from "@mui/material";
 import { messageCallbackType } from "@stomp/stompjs";
-import { useEffect, useReducer, useRef, useState } from "react";
-import { getTextChangeDetails } from "./helpers";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { calculateNewCursorPosition } from "./helpers";
 import { useWebSocketClient } from "./hooks";
 import "./styles/App.css";
-import { SharedDocument } from "./types";
+import { Operation, OperationTypeEnum, SharedDocument } from "./types";
 
-const TEXT_1 = "Hello!\n\nThis is a shared document.\n\nBlablas!";
-const TEXT_2 = "Hello!";
-
-const INITIAL_TEXT = TEXT_2;
-
-// when receiving an operation from the server
-// if the operation was made LOCALLY, it does nothing (it is an ACK)
-// if operation is REMOTE, verify the need of transformation
-
-// when inserting and deleting ONLY one char per time, transformation will be required when
-// previous operations have inserted and/or deleted BEFORE the current operation position index
-
-// note. 1: operations saved in SharedDocument (locally) have to be at transformed version (if required)
-
-// note. 2: it has to look back into all operations made between operation versions
-// for instance, current version is 3, and the operation is made in version 1, it has to look into
-// operations (transformed) made in version 2 and 3
-// so, from OPERATION_VERSION to CURRENT_VERSION
+// TODO: remove mock
+const TEXT = "Hello!";
+const INITIAL_TEXT = TEXT;
 
 function App() {
-  const { client, addSubscriber } = useWebSocketClient();
-  const [textContent, setTextContent] = useState<string>(INITIAL_TEXT);
-  const textAreaRef = useRef<HTMLTextAreaElement>();
-  const [localDocument, updateLocalDocument] = useReducer(
-    localDocumentReducer,
-    {
-      textContent: "",
-      currentUserId: "",
-      operations: [],
-      version: 0,
-    }
-  );
+  const {
+    client,
+    isConnected: isWebSocketConnected,
+    addSubscriber,
+    connectWebSocket,
+    disconnectWebSocket,
+  } = useWebSocketClient();
 
-  function localDocumentReducer(
-    state: SharedDocument,
-    action: any
-  ): SharedDocument {
-    return {
-      ...state,
+  const [textContent, setTextContent] = useState<string>(INITIAL_TEXT);
+  const [oldTextContent, setOldTextContent] = useState<string>(INITIAL_TEXT);
+  const [cursorPosition, setCursorPosition] = useState(0);
+  const [isCursorRepositionPending, setIsCursorRepositionPending] =
+    useState(false);
+
+  const textAreaRef = useRef<HTMLTextAreaElement>();
+
+  const refCallback = useCallback(setTextAreaRefAndCursorObserver, []);
+
+  useEffect(updateCursorPositionWhenRequired, [
+    cursorPosition,
+    isCursorRepositionPending,
+    oldTextContent.length,
+    textContent,
+  ]);
+
+  function setTextAreaRefAndCursorObserver(node: HTMLTextAreaElement) {
+    if (!node) return;
+
+    textAreaRef.current = node;
+
+    const handleCursorPosition = () => {
+      if (textAreaRef.current) {
+        setCursorPosition(textAreaRef.current.selectionStart);
+      }
+    };
+
+    const currentTextAreaRef = textAreaRef.current;
+
+    currentTextAreaRef.addEventListener("click", handleCursorPosition);
+    currentTextAreaRef.addEventListener("keyup", handleCursorPosition);
+
+    return () => {
+      currentTextAreaRef.removeEventListener("click", handleCursorPosition);
+      currentTextAreaRef.removeEventListener("keyup", handleCursorPosition);
     };
   }
 
-  //
-  // Remote Processing
-  //
+  function updateCursorPositionWhenRequired() {
+    if (!isCursorRepositionPending || !textAreaRef.current) {
+      setOldTextContent(textContent);
+      return;
+    }
 
-  // Remote Processing - Subscribers
+    const newCursorPos = calculateNewCursorPosition(
+      cursorPosition,
+      oldTextContent.length,
+      textContent.length
+    );
+
+    textAreaRef.current.selectionStart = newCursorPos;
+    textAreaRef.current.selectionEnd = newCursorPos;
+
+    setIsCursorRepositionPending(false);
+  }
+
+  // *
+  // * Web Socket Remote Processing - Subscribers
+  // *
 
   const getSharedDocument: messageCallbackType = (data) => {
     const sharedDocument = JSON.parse(data.body) as SharedDocument;
     console.log({ sharedDocument });
   };
 
-  const getOperationFromServer: messageCallbackType = () => {};
+  // const getOperationFromServer: messageCallbackType = () => {};
 
-  // Remote Processing - Publishers
+  // *
+  // * Web Socket Remote Processing - Publishers
+  // *
 
-  const sendOperationToServer = () => {};
+  const sendOperationToServer = () => {
+    const mockOperation: Operation = {
+      type: OperationTypeEnum.Insert,
+      position: 0,
+      value: "a",
+      userId: "123",
+      version: 1,
+    };
+
+    client.publish({
+      destination: "/doOperation",
+      body: JSON.stringify(mockOperation),
+    });
+  };
 
   //
   // Local Processing
   //
 
-  const handleLocalTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    // update the textContent
-    // mount and send the operation to the server
+  // const transformOperation = () => {};
 
-    const operationDetails = getTextChangeDetails(textContent, e.target.value);
-    console.log(operationDetails, "interceptor called");
+  const handleLocalTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    if (isCursorRepositionPending) return;
+
+    // todo: mount and send the operation to the server
+    // const operationDetails = getTextChangeDetails(textContent, e.target.value);
+
     setTextContent(e.target.value);
   };
 
-  const applyRemoteOperationLocally = () => {};
+  const applyRemoteOperationLocally = (operation: Operation) => {
+    if (operation.type === OperationTypeEnum.Insert) {
+      setTextContent((text) => {
+        const textContentSplitted = text.split("");
+        textContentSplitted.splice(operation.position, 0, operation.value);
+        return textContentSplitted.join("");
+      });
+    }
 
-  const transformOperation = () => {};
+    if (operation.type === OperationTypeEnum.Delete) {
+      setTextContent((text) => {
+        const textContentSplitted = text.split("");
+        textContentSplitted.splice(operation.position, operation.value.length);
+        return textContentSplitted.join("");
+      });
+    }
 
-  useEffect(() => {
-    if (!client.connected) return;
-    addSubscriber("/getSharedFile", getSharedDocument);
-  }, [client, addSubscriber]);
-
-  const handleTest = () => {
-    // this test shows that when injecting text, the cursor position requires to be updated (transformed)
-    setTextContent((text) => text.padStart(text.length + 3, "a"));
+    setIsCursorRepositionPending(true);
   };
 
-  useEffect(() => {
-    // call handleTest after 5 seconds
-    setTimeout(() => {
-      handleTest();
-    }, 5000);
-  }, []);
+  function setUpWebSocket() {
+    if (!client.connected) return;
+    console.log({ addSubscriber });
 
-  const isWebSocketConnected = client.connected;
+    addSubscriber("/getSharedFile", getSharedDocument);
+  }
+
+  useEffect(setUpWebSocket, [client.connected, addSubscriber]);
+
+  useEffect(() => {
+    setTimeout(() => {
+      applyRemoteOperationLocally({
+        position: 0,
+        type: OperationTypeEnum.Insert,
+        value: "a",
+        userId: "123",
+        version: 1,
+      });
+      applyRemoteOperationLocally({
+        position: 0,
+        type: OperationTypeEnum.Insert,
+        value: "\n",
+        userId: "123",
+        version: 1,
+      });
+      applyRemoteOperationLocally({
+        position: 0,
+        type: OperationTypeEnum.Insert,
+        value: "a\n\n",
+        userId: "123",
+        version: 1,
+      });
+    }, 3500);
+  }, []);
 
   return (
     <Box>
@@ -112,12 +185,24 @@ function App() {
             {isWebSocketConnected ? "conectado" : "desconectado"}
           </span>
         </Typography>
-        <Button color="success" disabled={isWebSocketConnected}>
-          Conectar WebSocket
-        </Button>
-        <Button color="error" disabled={!isWebSocketConnected}>
-          Desconectar WebSocket
-        </Button>
+        {!isWebSocketConnected && (
+          <Button
+            color="success"
+            disabled={isWebSocketConnected}
+            onClick={connectWebSocket}
+          >
+            Conectar WebSocket
+          </Button>
+        )}
+        {isWebSocketConnected && (
+          <Button
+            color="error"
+            disabled={!isWebSocketConnected}
+            onClick={disconnectWebSocket}
+          >
+            Desconectar WebSocket
+          </Button>
+        )}
       </Box>
 
       <Box mb={4} width="100%" height="100%">
@@ -129,10 +214,15 @@ function App() {
           value={textContent}
           onChange={handleLocalTextChange}
           fullWidth={true}
-          inputRef={textAreaRef}
+          inputRef={refCallback}
+          inputProps={{
+            id: "my-textarea",
+          }}
         />
       </Box>
-      <Button onClick={handleTest}>General Purpose Test Button</Button>
+      <Button onClick={() => console.log("Test")}>
+        General Purpose Test Button
+      </Button>
     </Box>
   );
 }
