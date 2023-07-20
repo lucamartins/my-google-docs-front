@@ -179,7 +179,7 @@ function App() {
   return (
     <Box>
       <Box mb={4}>
-        <Typography>
+        <Typography variant="h5" mb={2}>
           Status atual:{" "}
           <span style={{ fontWeight: "bold" }}>
             {isWebSocketConnected ? "conectado" : "desconectado"}
@@ -190,6 +190,7 @@ function App() {
             color="success"
             disabled={isWebSocketConnected}
             onClick={connectWebSocket}
+            variant="contained"
           >
             Conectar WebSocket
           </Button>
@@ -199,6 +200,7 @@ function App() {
             color="error"
             disabled={!isWebSocketConnected}
             onClick={handleCloseWebSocket}
+            variant="contained"
           >
             Desconectar WebSocket
           </Button>
@@ -220,9 +222,29 @@ function App() {
           }}
         />
       </Box>
-      <Button onClick={() => console.log("Test")}>
-        General Purpose Test Button
-      </Button>
+
+      <Box display="flex" justifyContent="space-between" alignItems="flex-end">
+        <Box
+          display="flex"
+          flexDirection="column"
+          justifyContent="flex-start"
+          alignItems="flex-start"
+          gap={1.5}
+        >
+          <Typography>Versão atual: {"{Feature Preview}"}</Typography>
+          <Typography>
+            Operações enviadas ao servidor: {"{Feature Preview}"}
+          </Typography>
+          <Typography>
+            Operações recebidas do servidor: {"{Feature Preview}"}
+          </Typography>
+          <Typography>Usuários conectados: {"{Feature Preview}"}</Typography>
+        </Box>
+
+        <Button onClick={() => console.log("Test")}>
+          General Purpose Test Button
+        </Button>
+      </Box>
     </Box>
   );
 }
