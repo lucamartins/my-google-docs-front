@@ -3,6 +3,6 @@ import { Operation } from ".";
 export interface SharedDocument {
   version: number;
   operations: Operation[];
-  textContent: string;
+  textContent: string[];
   currentUserId: string;
 }

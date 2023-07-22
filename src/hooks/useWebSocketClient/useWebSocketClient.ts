@@ -29,22 +29,22 @@ const useWebSocketClient = () => {
     []
   );
 
-  const addSubscriber = useCallback(
-    (destination: string, callback: messageCallbackType) => {
-      console.log("Adding subscriber to: " + destination);
+  const addSubscriber = (
+    destination: string,
+    callback: messageCallbackType
+  ) => {
+    console.log("Adding subscriber to: " + destination);
 
-      try {
-        if (!client || !client.connected) {
-          throw new Error("Client not connected");
-        }
-
-        client.subscribe(destination, callback);
-      } catch (error) {
-        console.error({ error });
+    try {
+      if (!client || !client.connected) {
+        throw new Error("Client not connected");
       }
-    },
-    [client]
-  );
+
+      client.subscribe(destination, callback);
+    } catch (error) {
+      console.error({ error });
+    }
+  };
 
   const connectWebSocket = useCallback(() => {
     if (!client || client.connected) {

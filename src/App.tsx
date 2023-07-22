@@ -1,26 +1,24 @@
 import { Box, Button, TextField, Typography } from "@mui/material";
-import { messageCallbackType } from "@stomp/stompjs";
+import { Client, messageCallbackType } from "@stomp/stompjs";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { calculateNewCursorPosition } from "./helpers";
-import { useWebSocketClient } from "./hooks";
+import {
+  calculateNewCursorPosition,
+  getTextChangeDetails,
+  transformOperation,
+} from "./helpers";
 import "./styles/App.css";
 import { Operation, OperationTypeEnum, SharedDocument } from "./types";
 
-// TODO: remove mock
-const TEXT = "Hello!";
-const INITIAL_TEXT = TEXT;
+const WEBSOCKET_URL = "wss://projetoufg.com.br/gs-guide-websocket";
 
 function App() {
-  const {
-    client,
-    isConnected: isWebSocketConnected,
-    addSubscriber,
-    connectWebSocket,
-    disconnectWebSocket,
-  } = useWebSocketClient();
-
-  const [textContent, setTextContent] = useState<string>(INITIAL_TEXT);
-  const [oldTextContent, setOldTextContent] = useState<string>(INITIAL_TEXT);
+  const [isSubscribedToVersionUpdate, setIsSubscribedToVersionUpdate] =
+    useState(false);
+  const [isWebSocketConnected, setIsWebSocketConnected] = useState(false);
+  const [client, setClient] = useState<Client | null>();
+  const [sharedDocument, setSharedDocument] = useState<SharedDocument>();
+  const [textContent, setTextContent] = useState<string>("");
+  const [oldTextContent, setOldTextContent] = useState<string>("");
   const [cursorPosition, setCursorPosition] = useState(0);
   const [isCursorRepositionPending, setIsCursorRepositionPending] =
     useState(false);
@@ -73,108 +71,157 @@ function App() {
   }
 
   // *
-  // * Web Socket Remote Processing - Subscribers
-  // *
-
-  const getSharedDocument: messageCallbackType = (data) => {
-    const sharedDocument = JSON.parse(data.body) as SharedDocument;
-    console.log({ sharedDocument });
-  };
-
-  // const getOperationFromServer: messageCallbackType = () => {};
-
-  // *
   // * Web Socket Remote Processing - Publishers
   // *
 
-  // const sendOperationToServer = () => {
-  //   const mockOperation: Operation = {
-  //     type: OperationTypeEnum.Insert,
-  //     position: 0,
-  //     value: "a",
-  //     userId: "123",
-  //     version: 1,
-  //   };
+  const sendOperationToServer = (operation: Operation) => {
+    if (!sharedDocument || !client) {
+      throw new Error("Must have shared document defined");
+    }
 
-  //   client.publish({
-  //     destination: "/doOperation",
-  //     body: JSON.stringify(mockOperation),
-  //   });
-  // };
+    setSharedDocument({
+      ...sharedDocument,
+      operations: [...sharedDocument.operations, operation],
+      version: operation.version + 1,
+    });
+
+    client.publish({
+      destination: "/app/doOperation",
+      body: JSON.stringify(operation),
+    });
+  };
 
   //
   // Local Processing
   //
 
-  // const transformOperation = () => {};
-
   const handleLocalTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    if (!sharedDocument) {
+      throw new Error("Must have shared document defined");
+    }
+
     if (isCursorRepositionPending) return;
 
-    // todo: mount and send the operation to the server
-    // const operationDetails = getTextChangeDetails(textContent, e.target.value);
+    const operationDetails = getTextChangeDetails(textContent, e.target.value);
 
+    const mountedServerOperation = {
+      position: operationDetails.position,
+      type: operationDetails.type,
+      value: operationDetails.value,
+      userId: sharedDocument.currentUserId,
+      version: sharedDocument.version,
+    } as unknown as Operation;
+
+    sendOperationToServer(mountedServerOperation);
     setTextContent(e.target.value);
   };
 
-  const applyRemoteOperationLocally = (operation: Operation) => {
-    if (operation.type === OperationTypeEnum.Insert) {
-      setTextContent((text) => {
-        const textContentSplitted = text.split("");
-        textContentSplitted.splice(operation.position, 0, operation.value);
-        return textContentSplitted.join("");
+  const applyRemoteOperationLocally = useCallback(
+    (operation: Operation) => {
+      if (!sharedDocument) {
+        return;
+      }
+
+      if (operation.userId === sharedDocument.currentUserId) return;
+
+      const transformedOperation = transformOperation(
+        operation,
+        sharedDocument.operations
+      );
+
+      if (transformedOperation.type === OperationTypeEnum.Insert) {
+        setTextContent((text) => {
+          const textContentSplitted = text.split("");
+          textContentSplitted.splice(
+            transformedOperation.position,
+            0,
+            transformedOperation.value
+          );
+          return textContentSplitted.join("");
+        });
+      }
+
+      if (transformedOperation.type === OperationTypeEnum.Delete) {
+        setTextContent((text) => {
+          const textContentSplitted = text.split("");
+          textContentSplitted.splice(
+            transformedOperation.position,
+            transformedOperation.value.length
+          );
+          return textContentSplitted.join("");
+        });
+      }
+
+      setSharedDocument({
+        ...sharedDocument,
+        version: sharedDocument.version,
       });
-    }
 
-    if (operation.type === OperationTypeEnum.Delete) {
-      setTextContent((text) => {
-        const textContentSplitted = text.split("");
-        textContentSplitted.splice(operation.position, operation.value.length);
-        return textContentSplitted.join("");
-      });
-    }
+      setIsCursorRepositionPending(true);
+    },
+    [sharedDocument]
+  );
 
-    setIsCursorRepositionPending(true);
-  };
+  // *
+  // * Web Socket Remote Processing - Subscribers
+  // *
 
-  function setUpWebSocket() {
-    if (!client.connected) return;
-    console.log({ addSubscriber });
+  const getSharedDocument: messageCallbackType = useCallback((data) => {
+    const sharedDocument = JSON.parse(data.body) as SharedDocument;
+    setSharedDocument(sharedDocument);
+    setTextContent(sharedDocument.textContent.join(""));
+  }, []);
 
-    addSubscriber("/getSharedFile", getSharedDocument);
-  }
+  const getOperationFromServer: messageCallbackType = useCallback(
+    (data) => {
+      const operation = JSON.parse(data.body) as Operation;
+      applyRemoteOperationLocally(operation);
+    },
+    [applyRemoteOperationLocally]
+  );
 
-  function handleCloseWebSocket() {
-    void disconnectWebSocket();
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const client = new Client({
+      brokerURL: WEBSOCKET_URL,
+      reconnectDelay: 5000,
+      onConnect: () => {
+        client.subscribe("/app/getSharedFile", getSharedDocument);
+        setIsWebSocketConnected(true);
+      },
+      onStompError: (frame) => {
+        console.group("WS - Broker reported error");
+        console.error("Broker reported error: " + frame.headers["message"]);
+        console.error("Additional details: " + frame.body);
+        console.groupEnd();
+      },
+    });
 
-  useEffect(setUpWebSocket, [client.connected, addSubscriber]);
+    client.activate();
+    setClient(client);
+
+    // return () => {
+    //   client.unsubscribe("/app/getSharedFile");
+    //   client.forceDisconnect();
+    //   setClient(null);
+    // };
+  }, []);
 
   useEffect(() => {
-    setTimeout(() => {
-      applyRemoteOperationLocally({
-        position: 0,
-        type: OperationTypeEnum.Insert,
-        value: "a",
-        userId: "123",
-        version: 1,
-      });
-      applyRemoteOperationLocally({
-        position: 0,
-        type: OperationTypeEnum.Insert,
-        value: "\n",
-        userId: "123",
-        version: 1,
-      });
-      applyRemoteOperationLocally({
-        position: 0,
-        type: OperationTypeEnum.Insert,
-        value: "a\n\n",
-        userId: "123",
-        version: 1,
-      });
-    }, 3500);
-  }, []);
+    if (!client?.connected) return;
+
+    client.subscribe("/topic/versionUpdate", getOperationFromServer);
+
+    return () => {
+      try {
+        client.unsubscribe("/topic/versionUpdate");
+      } catch (error) {
+        console.log("Can not unsubscribe");
+      }
+    };
+  }, [client, client?.connected, getOperationFromServer]);
+
+  console.log({ sharedDocument });
 
   return (
     <Box>
@@ -182,29 +229,9 @@ function App() {
         <Typography variant="h5" mb={2}>
           Status atual:{" "}
           <span style={{ fontWeight: "bold" }}>
-            {isWebSocketConnected ? "conectado" : "desconectado"}
+            {isWebSocketConnected ? "conectado" : "conectando..."}
           </span>
         </Typography>
-        {!isWebSocketConnected && (
-          <Button
-            color="success"
-            disabled={isWebSocketConnected}
-            onClick={connectWebSocket}
-            variant="contained"
-          >
-            Conectar WebSocket
-          </Button>
-        )}
-        {isWebSocketConnected && (
-          <Button
-            color="error"
-            disabled={!isWebSocketConnected}
-            onClick={handleCloseWebSocket}
-            variant="contained"
-          >
-            Desconectar WebSocket
-          </Button>
-        )}
       </Box>
 
       <Box mb={4} width="100%" height="100%">
@@ -217,6 +244,7 @@ function App() {
           onChange={handleLocalTextChange}
           fullWidth={true}
           inputRef={refCallback}
+          disabled={!isWebSocketConnected}
           inputProps={{
             id: "my-textarea",
           }}
@@ -231,14 +259,9 @@ function App() {
           alignItems="flex-start"
           gap={1.5}
         >
-          <Typography>Versão atual: {"{Feature Preview}"}</Typography>
           <Typography>
-            Operações enviadas ao servidor: {"{Feature Preview}"}
+            Versão atual: {String(sharedDocument?.version)}
           </Typography>
-          <Typography>
-            Operações recebidas do servidor: {"{Feature Preview}"}
-          </Typography>
-          <Typography>Usuários conectados: {"{Feature Preview}"}</Typography>
         </Box>
 
         <Button onClick={() => console.log("Test")}>
