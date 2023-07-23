@@ -37,7 +37,10 @@ function App() {
   const refCallback = useCallback(setTextAreaRefAndCursorObserver, []);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(updateCursorPositionWhenRequired, [textContent]);
+  useEffect(updateCursorPositionWhenRequired, [
+    textContent,
+    sharedDocumentRef.current?.operations,
+  ]);
 
   function setTextAreaRefAndCursorObserver(node: HTMLTextAreaElement) {
     if (!node) return;
@@ -62,16 +65,31 @@ function App() {
   }
 
   function updateCursorPositionWhenRequired() {
-    if (!isCursorRepositionPending || !textAreaRef.current) {
+    const lastOperation = sharedDocumentRef.current?.operations.slice(-1)[0];
+
+    if (!isCursorRepositionPending || !textAreaRef.current || !lastOperation) {
       setOldTextContent(textContent);
+      setIsCursorRepositionPending(false);
       return;
     }
 
-    const newCursorPos = calculateNewCursorPosition(
-      cursorPosition,
-      oldTextContent.length,
-      textContent.length
-    );
+    const lastOperationCursorIsAfterCurrentCursor =
+      lastOperation.position >= cursorPosition;
+
+    const newCursorPos = !lastOperationCursorIsAfterCurrentCursor
+      ? calculateNewCursorPosition(
+          cursorPosition,
+          oldTextContent.length,
+          textContent.length
+        )
+      : cursorPosition;
+
+    console.log("going to update cursor position", {
+      old: cursorPosition,
+      new: newCursorPos,
+      oldText: oldTextContent.length,
+      newText: textContent.length,
+    });
 
     textAreaRef.current.selectionStart = newCursorPos;
     textAreaRef.current.selectionEnd = newCursorPos;
@@ -88,11 +106,11 @@ function App() {
       throw new Error("Must have shared document defined");
     }
 
-    // setSharedDocument({
-    //   ...sharedDocument,
-    //   operations: [...sharedDocument.operations, operation],
-    //   version: operation.version + 1,
-    // });
+    setSharedDocument({
+      ...sharedDocument,
+      operations: [...sharedDocument.operations, operation],
+      // version: operation.version + 1,
+    });
 
     setIsWaitingAck(true);
     // isWaitingAckRef.current = true;
@@ -117,6 +135,7 @@ function App() {
       return;
     }
 
+    console.log({ isCursorRepositionPending });
     if (isCursorRepositionPending) return;
 
     const operationDetails = getTextChangeDetails(textContent, e.target.value);
@@ -142,7 +161,6 @@ function App() {
       setSharedDocument({
         ...sharedDocumentRef.current,
         version: sharedDocumentRef.current.version + 1,
-        operations: [...sharedDocumentRef.current.operations, operation],
       });
 
       if (isWaitingAckRef.current) {
@@ -152,8 +170,6 @@ function App() {
 
       return;
     }
-
-    console.log(isWaitingAck);
 
     const transformedOperation = transformOperation(
       operation,
