@@ -23,14 +23,13 @@ function App() {
   const [isCursorRepositionPending, setIsCursorRepositionPending] =
     useState(false);
   const [isWaitingAck, setIsWaitingAck] = useState(false);
+  const [undoLocal, setUndoLocal] = useState(false);
 
   const sharedDocumentRef = useRef<SharedDocument>();
   sharedDocumentRef.current = sharedDocument;
 
   const isWaitingAckRef = useRef<boolean>(false);
   isWaitingAckRef.current = isWaitingAck;
-
-  console.log({ isWaitingAck, cur: isWaitingAckRef.current });
 
   const textAreaRef = useRef<HTMLTextAreaElement>();
 
@@ -41,6 +40,17 @@ function App() {
     textContent,
     sharedDocumentRef.current?.operations,
   ]);
+
+  useEffect(() => {
+    if (!textAreaRef.current || !undoLocal) {
+      return;
+    }
+
+    textAreaRef.current.selectionStart = cursorPosition;
+    textAreaRef.current.selectionEnd = cursorPosition;
+
+    setUndoLocal(false);
+  }, [undoLocal, cursorPosition]);
 
   function setTextAreaRefAndCursorObserver(node: HTMLTextAreaElement) {
     if (!node) return;
@@ -84,13 +94,6 @@ function App() {
         )
       : cursorPosition;
 
-    console.log("going to update cursor position", {
-      old: cursorPosition,
-      new: newCursorPos,
-      oldText: oldTextContent.length,
-      newText: textContent.length,
-    });
-
     textAreaRef.current.selectionStart = newCursorPos;
     textAreaRef.current.selectionEnd = newCursorPos;
 
@@ -131,11 +134,12 @@ function App() {
     }
 
     if (isWaitingAckRef.current) {
+      console.log({ textContent: e.target.value, oldTextContent });
       setCount((count) => count + 1);
-      return;
+      setUndoLocal(true);
+      return oldTextContent;
     }
 
-    console.log({ isCursorRepositionPending });
     if (isCursorRepositionPending) return;
 
     const operationDetails = getTextChangeDetails(textContent, e.target.value);
@@ -249,8 +253,6 @@ function App() {
       setClient(client);
     }
   }, []);
-
-  console.log({ sharedDocument });
 
   return (
     <Box>
