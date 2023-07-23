@@ -1,5 +1,5 @@
 import { Box, Button, TextField, Typography } from "@mui/material";
-import { Client, messageCallbackType } from "@stomp/stompjs";
+import { Client } from "@stomp/stompjs";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   calculateNewCursorPosition,
@@ -10,10 +10,9 @@ import "./styles/App.css";
 import { Operation, OperationTypeEnum, SharedDocument } from "./types";
 
 const WEBSOCKET_URL = "wss://projetoufg.com.br/gs-guide-websocket";
+let HAVE_CONNECTED = false;
 
 function App() {
-  const [isSubscribedToVersionUpdate, setIsSubscribedToVersionUpdate] =
-    useState(false);
   const [isWebSocketConnected, setIsWebSocketConnected] = useState(false);
   const [client, setClient] = useState<Client | null>();
   const [sharedDocument, setSharedDocument] = useState<SharedDocument>();
@@ -22,6 +21,9 @@ function App() {
   const [cursorPosition, setCursorPosition] = useState(0);
   const [isCursorRepositionPending, setIsCursorRepositionPending] =
     useState(false);
+  const sharedDocumentRef = useRef<SharedDocument>();
+
+  sharedDocumentRef.current = sharedDocument;
 
   const textAreaRef = useRef<HTMLTextAreaElement>();
 
@@ -116,69 +118,52 @@ function App() {
     setTextContent(e.target.value);
   };
 
-  const applyRemoteOperationLocally = useCallback(
-    (operation: Operation) => {
-      if (!sharedDocument) {
-        return;
-      }
+  const applyRemoteOperationLocally = (operation: Operation) => {
+    if (!sharedDocumentRef.current) {
+      return;
+    }
 
-      if (operation.userId === sharedDocument.currentUserId) return;
+    if (operation.userId === sharedDocumentRef.current.currentUserId) return;
 
-      const transformedOperation = transformOperation(
-        operation,
-        sharedDocument.operations
-      );
+    const transformedOperation = transformOperation(
+      operation,
+      sharedDocumentRef.current.operations
+    );
 
-      if (transformedOperation.type === OperationTypeEnum.Insert) {
-        setTextContent((text) => {
-          const textContentSplitted = text.split("");
-          textContentSplitted.splice(
-            transformedOperation.position,
-            0,
-            transformedOperation.value
-          );
-          return textContentSplitted.join("");
-        });
-      }
-
-      if (transformedOperation.type === OperationTypeEnum.Delete) {
-        setTextContent((text) => {
-          const textContentSplitted = text.split("");
-          textContentSplitted.splice(
-            transformedOperation.position,
-            transformedOperation.value.length
-          );
-          return textContentSplitted.join("");
-        });
-      }
-
-      setSharedDocument({
-        ...sharedDocument,
-        version: sharedDocument.version,
+    if (transformedOperation.type === OperationTypeEnum.Insert) {
+      setTextContent((text) => {
+        const textContentSplitted = text.split("");
+        textContentSplitted.splice(
+          transformedOperation.position,
+          0,
+          transformedOperation.value
+        );
+        return textContentSplitted.join("");
       });
+    }
 
-      setIsCursorRepositionPending(true);
-    },
-    [sharedDocument]
-  );
+    if (transformedOperation.type === OperationTypeEnum.Delete) {
+      setTextContent((text) => {
+        const textContentSplitted = text.split("");
+        textContentSplitted.splice(
+          transformedOperation.position,
+          transformedOperation.value.length
+        );
+        return textContentSplitted.join("");
+      });
+    }
+
+    setSharedDocument({
+      ...sharedDocumentRef.current,
+      version: sharedDocumentRef.current.version,
+    });
+
+    setIsCursorRepositionPending(true);
+  };
 
   // *
   // * Web Socket Remote Processing - Subscribers
   // *
-
-  const getSharedDocument: messageCallbackType = useCallback((data) => {
-    const sharedDocument = JSON.parse(data.body) as SharedDocument;
-    setSharedDocument(sharedDocument);
-    setTextContent(sharedDocument.textContent.join(""));
-  }, []);
-
-  const getOperationFromServer: messageCallbackType = useCallback(
-    (data) => {
-      const operation = JSON.parse(data.body) as Operation;
-      applyRemoteOperationLocally(operation);
-    },
-    [applyRemoteOperationLocally]
-  );
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -186,8 +171,16 @@ function App() {
       brokerURL: WEBSOCKET_URL,
       reconnectDelay: 5000,
       onConnect: () => {
-        client.subscribe("/app/getSharedFile", getSharedDocument);
         setIsWebSocketConnected(true);
+        client.subscribe("/app/getSharedFile", (data) => {
+          const sharedDocument = JSON.parse(data.body) as SharedDocument;
+          setSharedDocument(sharedDocument);
+          setTextContent(sharedDocument.textContent.join(""));
+        });
+        client.subscribe("/topic/versionUpdate", (data) => {
+          const operation = JSON.parse(data.body) as Operation;
+          applyRemoteOperationLocally(operation);
+        });
       },
       onStompError: (frame) => {
         console.group("WS - Broker reported error");
@@ -195,31 +188,17 @@ function App() {
         console.error("Additional details: " + frame.body);
         console.groupEnd();
       },
+      onDisconnect: () => {
+        HAVE_CONNECTED = false;
+      },
     });
 
-    client.activate();
-    setClient(client);
-
-    // return () => {
-    //   client.unsubscribe("/app/getSharedFile");
-    //   client.forceDisconnect();
-    //   setClient(null);
-    // };
+    if (!HAVE_CONNECTED) {
+      HAVE_CONNECTED = true;
+      client.activate();
+      setClient(client);
+    }
   }, []);
-
-  useEffect(() => {
-    if (!client?.connected) return;
-
-    client.subscribe("/topic/versionUpdate", getOperationFromServer);
-
-    return () => {
-      try {
-        client.unsubscribe("/topic/versionUpdate");
-      } catch (error) {
-        console.log("Can not unsubscribe");
-      }
-    };
-  }, [client, client?.connected, getOperationFromServer]);
 
   console.log({ sharedDocument });
 
