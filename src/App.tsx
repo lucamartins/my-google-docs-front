@@ -13,6 +13,7 @@ const WEBSOCKET_URL = "wss://projetoufg.com.br/gs-guide-websocket";
 let HAVE_CONNECTED = false;
 
 function App() {
+  const [count, setCount] = useState(0);
   const [isWebSocketConnected, setIsWebSocketConnected] = useState(false);
   const [client, setClient] = useState<Client | null>();
   const [sharedDocument, setSharedDocument] = useState<SharedDocument>();
@@ -21,9 +22,15 @@ function App() {
   const [cursorPosition, setCursorPosition] = useState(0);
   const [isCursorRepositionPending, setIsCursorRepositionPending] =
     useState(false);
-  const sharedDocumentRef = useRef<SharedDocument>();
+  const [isWaitingAck, setIsWaitingAck] = useState(false);
 
+  const sharedDocumentRef = useRef<SharedDocument>();
   sharedDocumentRef.current = sharedDocument;
+
+  const isWaitingAckRef = useRef<boolean>(false);
+  isWaitingAckRef.current = isWaitingAck;
+
+  console.log({ isWaitingAck, cur: isWaitingAckRef.current });
 
   const textAreaRef = useRef<HTMLTextAreaElement>();
 
@@ -81,11 +88,14 @@ function App() {
       throw new Error("Must have shared document defined");
     }
 
-    setSharedDocument({
-      ...sharedDocument,
-      operations: [...sharedDocument.operations, operation],
-      version: operation.version + 1,
-    });
+    // setSharedDocument({
+    //   ...sharedDocument,
+    //   operations: [...sharedDocument.operations, operation],
+    //   version: operation.version + 1,
+    // });
+
+    setIsWaitingAck(true);
+    // isWaitingAckRef.current = true;
 
     client.publish({
       destination: "/app/doOperation",
@@ -100,6 +110,11 @@ function App() {
   const handleLocalTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     if (!sharedDocument) {
       throw new Error("Must have shared document defined");
+    }
+
+    if (isWaitingAckRef.current) {
+      setCount((count) => count + 1);
+      return;
     }
 
     if (isCursorRepositionPending) return;
@@ -123,7 +138,22 @@ function App() {
       return;
     }
 
-    if (operation.userId === sharedDocumentRef.current.currentUserId) return;
+    if (operation.userId === sharedDocumentRef.current.currentUserId) {
+      setSharedDocument({
+        ...sharedDocumentRef.current,
+        version: sharedDocumentRef.current.version + 1,
+        operations: [...sharedDocumentRef.current.operations, operation],
+      });
+
+      if (isWaitingAckRef.current) {
+        setIsWaitingAck(false);
+        textAreaRef?.current?.focus();
+      }
+
+      return;
+    }
+
+    console.log(isWaitingAck);
 
     const transformedOperation = transformOperation(
       operation,
@@ -155,7 +185,11 @@ function App() {
 
     setSharedDocument({
       ...sharedDocumentRef.current,
-      version: sharedDocumentRef.current.version,
+      version: sharedDocumentRef.current.version + 1,
+      operations: [
+        ...sharedDocumentRef.current.operations,
+        transformedOperation,
+      ],
     });
 
     setIsCursorRepositionPending(true);
@@ -243,9 +277,7 @@ function App() {
           </Typography>
         </Box>
 
-        <Button onClick={() => console.log("Test")}>
-          General Purpose Test Button
-        </Button>
+        <Typography>Count: {count}</Typography>
       </Box>
     </Box>
   );
