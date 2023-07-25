@@ -111,6 +111,11 @@ function App() {
 
     setIsWaitingAck(true);
 
+    setSharedDocument({
+      ...sharedDocument,
+      localOperation: sharedDocument.localOperation,
+    });
+
     client.publish({
       destination: "/app/doOperation",
       body: JSON.stringify(operation),
@@ -159,6 +164,7 @@ function App() {
         ...sharedDocumentRef.current,
         version: sharedDocumentRef.current.version + 1,
         operations: [...sharedDocumentRef.current.operations, operation],
+        localOperation: null,
       });
 
       if (isWaitingAckRef.current) {
@@ -169,10 +175,12 @@ function App() {
       return;
     }
 
-    const transformedOperation = transformOperation(
-      operation,
-      sharedDocumentRef.current.operations
-    );
+    const transformedOperation = transformOperation(operation, [
+      ...sharedDocumentRef.current.operations,
+      ...(sharedDocumentRef.current.localOperation
+        ? [sharedDocumentRef.current.localOperation]
+        : []),
+    ]);
 
     if (transformedOperation.type === OperationTypeEnum.Insert) {
       setTextContent((text) => {
@@ -238,7 +246,10 @@ function App() {
         setIsWebSocketConnected(true);
         client.subscribe("/app/getSharedFile", (data) => {
           const sharedDocument = JSON.parse(data.body) as SharedDocument;
-          setSharedDocument(sharedDocument);
+          setSharedDocument({
+            ...sharedDocument,
+            localOperation: null,
+          });
           setTextContent(sharedDocument.textContent.join(""));
         });
         client.subscribe("/topic/versionUpdate", (data) => {
