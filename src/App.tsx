@@ -25,11 +25,20 @@ function App() {
   const [isWaitingAck, setIsWaitingAck] = useState(false);
   const [undoLocal, setUndoLocal] = useState(false);
 
+  const [pendingAckLocalOp, setPendingAckLocalOp] = useState<
+    Operation | undefined
+  >();
+
+  const [isPerformingLocalOp, setIsPerformingLocalOp] = useState(false);
+
   const sharedDocumentRef = useRef<SharedDocument>();
   sharedDocumentRef.current = sharedDocument;
 
   const isWaitingAckRef = useRef<boolean>(false);
   isWaitingAckRef.current = isWaitingAck;
+
+  const pendingAckLocalOpRef = useRef<Operation>();
+  pendingAckLocalOpRef.current = pendingAckLocalOp;
 
   const textAreaRef = useRef<HTMLTextAreaElement>();
 
@@ -126,13 +135,15 @@ function App() {
   // Local Processing
   //
 
-  const handleLocalTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+  const handleLocalTextChange = (
+    e: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>
+  ) => {
     if (!sharedDocument) {
       throw new Error("Must have shared document defined");
     }
 
     if (isWaitingAckRef.current) {
-      console.log({ textContent: e.target.value, oldTextContent });
+      // console.log({ textContent: e.target.value, oldTextContent });
       setCount((count) => count + 1);
       setUndoLocal(true);
       return oldTextContent;
@@ -150,6 +161,7 @@ function App() {
       version: sharedDocument.version,
     } as unknown as Operation;
 
+    setPendingAckLocalOp(mountedServerOperation);
     sendOperationToServer(mountedServerOperation);
     setTextContent(e.target.value);
   };
@@ -172,13 +184,27 @@ function App() {
         textAreaRef?.current?.focus();
       }
 
+      if (pendingAckLocalOpRef?.current?.version === operation.version) {
+        setPendingAckLocalOp(undefined);
+      }
+
       return;
     }
 
+    // while (
+    //   sharedDocumentRef.current.localOperation?.version !==
+    //   pendingAckLocalOpRef.current
+    // ) {
+    //   const isWaitingAck = pendingAckLocalOpRef.current;
+    //   console.log({ isWaitingAck });
+    // }
+
+    console.log({ localOp: pendingAckLocalOpRef.current });
+
     const transformedOperation = transformOperation(operation, [
       ...sharedDocumentRef.current.operations,
-      ...(sharedDocumentRef.current.localOperation
-        ? [sharedDocumentRef.current.localOperation]
+      ...(pendingAckLocalOpRef.current
+        ? [{ ...pendingAckLocalOpRef.current, isPendingAck: true }]
         : []),
     ]);
 
@@ -192,11 +218,11 @@ function App() {
           transformedOperation.value
         );
 
-        console.log("vou INSERIR caracter do servidor", {
-          text,
-          transformedOperation,
-          finalText: textContentSplitted,
-        });
+        // console.log("vou INSERIR caracter do servidor", {
+        //   text,
+        //   transformedOperation,
+        //   finalText: textContentSplitted,
+        // });
 
         return textContentSplitted.join("");
       });
@@ -211,11 +237,11 @@ function App() {
           transformedOperation.value.length
         );
 
-        console.log("vou DELETAR caracter do servidor", {
-          text,
-          transformedOperation,
-          finalText: textContentSplitted,
-        });
+        // console.log("vou DELETAR caracter do servidor", {
+        //   text,
+        //   transformedOperation,
+        //   finalText: textContentSplitted,
+        // });
 
         return textContentSplitted.join("");
       });
@@ -293,7 +319,11 @@ function App() {
           multiline
           rows={20}
           value={textContent}
-          onChange={handleLocalTextChange}
+          onChange={(e) => {
+            setIsPerformingLocalOp(true);
+            handleLocalTextChange(e);
+            setIsPerformingLocalOp(false);
+          }}
           fullWidth={true}
           inputRef={refCallback}
           disabled={!isWebSocketConnected}

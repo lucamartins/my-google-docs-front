@@ -30,7 +30,10 @@ const transformOperation: OperationTransformer = (
 
   operationsToLookWhenTransforming.forEach((appliedOperation) => {
     if (transformedOperation.position >= appliedOperation.position) {
-      if (appliedOperation.type === OperationTypeEnum.Insert) {
+      if (
+        appliedOperation.type === OperationTypeEnum.Insert &&
+        !appliedOperation.isPendingAck
+      ) {
         transformedOperation.position++;
       } else {
         transformedOperation.position--;
@@ -41,6 +44,7 @@ const transformOperation: OperationTransformer = (
   console.log({
     incomingOperation,
     operationsToLookWhenTransforming,
+    appliedOperations,
     transformedOperation,
   });
 

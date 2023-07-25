@@ -9,6 +9,7 @@ export interface Operation {
   position: number;
   version: number;
   userId: string;
+  isPendingAck?: boolean;
 }
 
 export interface OperationTransformer {
