@@ -29,13 +29,19 @@ const transformOperation: OperationTransformer = (
   operationsToLookWhenTransforming.sort((a, b) => a.version - b.version);
 
   operationsToLookWhenTransforming.forEach((appliedOperation) => {
-    if (transformedOperation.position > appliedOperation.position) {
+    if (transformedOperation.position >= appliedOperation.position) {
       if (appliedOperation.type === OperationTypeEnum.Insert) {
         transformedOperation.position++;
       } else {
         transformedOperation.position--;
       }
     }
+  });
+
+  console.log({
+    incomingOperation,
+    operationsToLookWhenTransforming,
+    transformedOperation,
   });
 
   return transformedOperation;
