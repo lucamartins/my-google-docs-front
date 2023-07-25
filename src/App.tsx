@@ -109,14 +109,7 @@ function App() {
       throw new Error("Must have shared document defined");
     }
 
-    setSharedDocument({
-      ...sharedDocument,
-      operations: [...sharedDocument.operations, operation],
-      // version: operation.version + 1,
-    });
-
     setIsWaitingAck(true);
-    // isWaitingAckRef.current = true;
 
     client.publish({
       destination: "/app/doOperation",
@@ -165,6 +158,10 @@ function App() {
       setSharedDocument({
         ...sharedDocumentRef.current,
         version: sharedDocumentRef.current.version + 1,
+        operations: [
+          ...sharedDocumentRef.current.operations,
+          { ...operation, ack: true },
+        ],
       });
 
       if (isWaitingAckRef.current) {
@@ -183,11 +180,19 @@ function App() {
     if (transformedOperation.type === OperationTypeEnum.Insert) {
       setTextContent((text) => {
         const textContentSplitted = text.split("");
+
         textContentSplitted.splice(
           transformedOperation.position,
           0,
           transformedOperation.value
         );
+
+        console.log("vou INSERIR caracter do servidor", {
+          text,
+          transformedOperation,
+          finalText: textContentSplitted,
+        });
+
         return textContentSplitted.join("");
       });
     }
@@ -195,10 +200,18 @@ function App() {
     if (transformedOperation.type === OperationTypeEnum.Delete) {
       setTextContent((text) => {
         const textContentSplitted = text.split("");
+
         textContentSplitted.splice(
           transformedOperation.position,
           transformedOperation.value.length
         );
+
+        console.log("vou DELETAR caracter do servidor", {
+          text,
+          transformedOperation,
+          finalText: textContentSplitted,
+        });
+
         return textContentSplitted.join("");
       });
     }
@@ -223,7 +236,7 @@ function App() {
   useEffect(() => {
     const client = new Client({
       brokerURL: WEBSOCKET_URL,
-      reconnectDelay: 5000,
+      // reconnectDelay: 5000,
       onConnect: () => {
         setIsWebSocketConnected(true);
         client.subscribe("/app/getSharedFile", (data) => {
