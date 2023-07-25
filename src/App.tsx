@@ -158,10 +158,7 @@ function App() {
       setSharedDocument({
         ...sharedDocumentRef.current,
         version: sharedDocumentRef.current.version + 1,
-        operations: [
-          ...sharedDocumentRef.current.operations,
-          { ...operation, ack: true },
-        ],
+        operations: [...sharedDocumentRef.current.operations, operation],
       });
 
       if (isWaitingAckRef.current) {
