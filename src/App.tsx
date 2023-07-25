@@ -29,8 +29,6 @@ function App() {
     Operation | undefined
   >();
 
-  const [isPerformingLocalOp, setIsPerformingLocalOp] = useState(false);
-
   const sharedDocumentRef = useRef<SharedDocument>();
   sharedDocumentRef.current = sharedDocument;
 
@@ -320,9 +318,7 @@ function App() {
           rows={20}
           value={textContent}
           onChange={(e) => {
-            setIsPerformingLocalOp(true);
             handleLocalTextChange(e);
-            setIsPerformingLocalOp(false);
           }}
           fullWidth={true}
           inputRef={refCallback}
